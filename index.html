@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Imágenes en fosa común</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:"Times New Roman",Times,serif}header{padding:38px 5vw 34px;display:flex;justify-content:space-between;align-items:baseline;gap:20px}h1{font-size:clamp(25px,3vw,38px);font-weight:normal;margin:0}button{font:inherit;cursor:pointer}#abrir{border:0;background:none;text-decoration:underline;font-size:clamp(17px,2vw,22px);white-space:nowrap;color:#111}main{padding:0 5vw 70px}.galeria{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.foto{border:0;padding:0;aspect-ratio:1;background:#f3f3f3;overflow:hidden;display:block;width:100%;cursor:zoom-in}.foto img{width:100%;height:100%;object-fit:cover;display:block}.foto:focus-visible,button:focus-visible{outline:2px solid #111;outline-offset:3px}.vacio{font-size:20px;color:#555;margin-top:30px}.estado{font-size:15px;min-height:22px;margin:0 0 16px}.overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.96);z-index:10;overflow:auto;padding:25px;align-items:center;justify-content:center}.overlay.visible{display:flex}.panel{width:min(430px,100%);background:#fff;border:1px solid #111;padding:26px}.panel h2{font-size:27px;font-weight:normal;margin:0 0 20px}.panel label{display:block;margin:0 0 10px;font-size:18px}.panel input{display:block;width:100%;font:inherit;font-size:16px;margin-bottom:18px}.acciones{display:flex;flex-wrap:wrap;gap:10px}.acciones button,.cerrar-foto{border:1px solid #111;background:#fff;color:#111;padding:9px 14px;font-size:17px}.acciones button:disabled{opacity:.5;cursor:wait}.nota{font-size:15px;color:#555;line-height:1.4}.visor{flex-direction:column;gap:16px}.visor img{max-width:90vw;max-height:80vh;object-fit:contain}.cerrar-foto{align-self:flex-end}@media(max-width:900px){.galeria{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}}@media(max-width:600px){header{padding:25px 18px 24px;align-items:flex-start;flex-direction:column;gap:14px}main{padding:0 12px 40px}.galeria{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.overlay{padding:14px}.panel{padding:20px}}
+</style>
+</head>
+<body>
+<header><h1>Imágenes en fosa común</h1><button id="abrir" type="button">Añadir imagen</button></header>
+<main><p id="estado" class="estado" role="status"></p><div id="galeria" class="galeria" aria-label="Galería de imágenes"></div><p id="vacio" class="vacio" hidden>Aún no hay imágenes. Añade la primera.</p></main>
+<div class="overlay" id="formulario" role="dialog" aria-modal="true" aria-label="Añadir imagen"><form class="panel" id="subida"><h2>Añade tu imagen</h2><label for="archivo">Selecciona una fotografía</label><input id="archivo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required><p class="nota">Máximo 5 MB. Las imágenes serán públicas y visibles para cualquiera que visite la galería. No subas fotografías de otras personas sin su permiso.</p><div class="acciones"><button id="publicar" type="submit">Publicar imagen</button><button id="cancelar" type="button">Cancelar</button></div><p id="errorSubida" class="nota" role="alert"></p></form></div>
+<div class="overlay visor" id="visor" role="dialog" aria-modal="true" aria-label="Ver imagen"><button id="cerrarVisor" class="cerrar-foto" type="button">Cerrar ×</button><img id="imagenGrande" alt="Imagen de la galería"></div>
+<script>
+// Proyecto Supabase existente; solo se utiliza la clave pública.
+const SUPABASE_URL = 'https://xlhgeegsjugbokepmvvb.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_c8S5o0aQYraIthXENgklxg_EJ8Xh-rF';
+// Configurar un bucket público llamado imagenes-fosa-comun y las políticas indicadas en INSTRUCCIONES.txt.
+const BUCKET = 'imagenes-fosa-comun';
+const TABLA = 'imagenes_fosa_comun';
+const db = supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=id=>document.getElementById(id);
+const estado=$('estado');
+function abrirModal(id){$(id).classList.add('visible')}
+function cerrarModal(id){$(id).classList.remove('visible')}
+$('abrir').onclick=()=>abrirModal('formulario');
+$('cancelar').onclick=()=>cerrarModal('formulario');
+$('cerrarVisor').onclick=()=>cerrarModal('visor');
+for(const id of ['formulario','visor']){$(id).addEventListener('click',e=>{if(e.target===$(id))cerrarModal(id)})}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){cerrarModal('formulario');cerrarModal('visor')}});
+function mostrarImagen(registro){
+  const {data}=db.storage.from(BUCKET).getPublicUrl(registro.ruta);
+  const boton=document.createElement('button');boton.type='button';boton.className='foto';boton.setAttribute('aria-label','Ampliar imagen');
+  const img=document.createElement('img');img.src=data.publicUrl;img.alt='Fotografía compartida';img.loading='lazy';
+  boton.appendChild(img);boton.onclick=()=>{$('imagenGrande').src=data.publicUrl;abrirModal('visor')};
+  $('galeria').appendChild(boton);
+}
+async function cargarImagenes(){
+  estado.textContent='Cargando imágenes…';
+  const {data,error}=await db.from(TABLA).select('ruta,created_at').order('created_at',{ascending:true});
+  if(error){estado.textContent='No se pudo cargar la galería. Revisa la configuración de Supabase.';console.error(error);return}
+  $('galeria').replaceChildren();data.forEach(mostrarImagen);$('vacio').hidden=data.length>0;estado.textContent='';
+}
+$('subida').addEventListener('submit',async e=>{
+ e.preventDefault();const archivo=$('archivo').files[0];if(!archivo)return;
+ const tipos=['image/jpeg','image/png','image/webp','image/gif'];
+ if(!tipos.includes(archivo.type)||archivo.size>5*1024*1024){$('errorSubida').textContent='Elige una imagen JPG, PNG, WebP o GIF de menos de 5 MB.';return}
+ $('publicar').disabled=true;$('errorSubida').textContent='Publicando…';
+ const extension=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'})[archivo.type];
+ const ruta=crypto.randomUUID()+'.'+extension;
+ try{
+   const subida=await db.storage.from(BUCKET).upload(ruta,archivo,{contentType:archivo.type,upsert:false});
+   if(subida.error)throw subida.error;
+   const registro=await db.from(TABLA).insert({ruta});
+   if(registro.error)throw registro.error;
+   $('archivo').value='';$('errorSubida').textContent='';cerrarModal('formulario');await cargarImagenes();
+ }catch(error){$('errorSubida').textContent='No se pudo publicar: '+error.message;console.error(error)}
+ finally{$('publicar').disabled=false}
+});
+cargarImagenes();
+</script>
+</body>
+</html>

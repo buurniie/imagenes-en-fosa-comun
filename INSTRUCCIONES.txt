@@ -1,0 +1,45 @@
+IMÁGENES EN FOSA COMÚN — CONFIGURACIÓN
+
+Esta web no está lista para recibir fotos hasta configurar Supabase.
+Usa el proyecto Supabase que ya tienes para Universo de palabras.
+
+1. En Supabase > Storage crea un bucket llamado imagenes-fosa-comun.
+   Marca Public bucket. Configura límite de archivo de 5 MB y tipos MIME
+   image/jpeg, image/png, image/webp, image/gif.
+
+2. En SQL Editor ejecuta:
+
+create table if not exists public.imagenes_fosa_comun (
+  id bigint generated always as identity primary key,
+  ruta text not null unique,
+  created_at timestamptz not null default now()
+);
+
+alter table public.imagenes_fosa_comun enable row level security;
+
+create policy "Ver imagenes publicas" on public.imagenes_fosa_comun
+  for select to anon using (true);
+
+create policy "Publicar imagenes" on public.imagenes_fosa_comun
+  for insert to anon with check (true);
+
+3. En Storage > imagenes-fosa-comun > Policies, crea una política
+   INSERT para rol anon, con esta expresión WITH CHECK:
+   bucket_id = 'imagenes-fosa-comun'
+   (O en SQL Editor, si prefieres):
+
+create policy "Subir fotos anonimas fosa comun" on storage.objects
+  for insert to anon with check (bucket_id = 'imagenes-fosa-comun');
+
+4. Abre index.html para probar. Publica la CARPETA en un NUEVO sitio
+   de Netlify; no reemplaces Universo de palabras.
+
+IMPORTANTE SOBRE SEGURIDAD:
+- Cualquier persona podrá subir fotos; esta configuración es apropiada
+  solo para una prueba controlada, NO para difusión pública amplia.
+- Antes de compartir públicamente, añade moderación, límites por usuario,
+  protección anti-spam, revisión de contenidos y un mecanismo de retirada.
+- Las fotos quedan almacenadas públicamente en Supabase Storage.
+- El bucket público permite lectura de archivos; no permite borrar archivos
+  desde la web con estas políticas.
+- El archivo puede quedar huérfano si falla la inserción en la tabla.
